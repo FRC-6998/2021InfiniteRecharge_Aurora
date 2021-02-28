@@ -5,6 +5,8 @@
 
 package frc.robot;
 
+import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.GenericHID;
@@ -12,16 +14,15 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.controller.PIDController;
 import edu.wpi.first.wpilibj.controller.RamseteController;
 import edu.wpi.first.wpilibj.controller.SimpleMotorFeedforward;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.trajectory.Trajectory;
 import edu.wpi.first.wpilibj.trajectory.TrajectoryUtil;
-import edu.wpi.first.wpilibj.trajectory.constraint.DifferentialDriveVoltageConstraint;
 import edu.wpi.first.wpilibj2.command.*;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import frc.robot.Constants.AutoConstants;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.subsystems.CollectSubsystem;
 import frc.robot.subsystems.DriveSubsystem;
+import frc.robot.subsystems.ShootSubsystem;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -33,9 +34,12 @@ import java.nio.file.Path;
  * subsystems, commands, and button mappings) should be declared here.
  */
 public class RobotContainer {
+    NetworkTableInstance nt=NetworkTableInstance.getDefault();
     XboxController controller = new XboxController(0);
     DriveSubsystem m_robotDrive = new DriveSubsystem();
     CollectSubsystem m_robotCollector = new CollectSubsystem();
+    ShootSubsystem m_robotShooter = new ShootSubsystem(nt);
+    WPI_VictorSPX motorTransfer = new WPI_VictorSPX(8);
     Robot robot;
 
     /**
@@ -59,39 +63,42 @@ public class RobotContainer {
      * {@link edu.wpi.first.wpilibj2.command.button.JoystickButton JoystickButton}.
      */
     private void configureButtonBindings() {
-        new JoystickButton(controller, 1).whenPressed(new Runnable() {
-            @Override
-            public void run() {
-                m_robotDrive.reverse();
-            }
-        }, m_robotDrive);
+
     }
 
 
-    /**
-     * Use this to pass the autonomous command to the main {@link Robot} class.
-     *
-     * @return the command to run in autonomous
-     */
     /**
      * Use this to pass the autonomous command to the main {@link Robot} class.
      *
      * @return the command to run in autonomous
      */
     public Command getAutonomousCommand() {
-        Command command = getTrajectoryCommand("BarrelSplit1.wpilib.json");
-        command = command.andThen(() -> {
-            m_robotDrive.reverse();
-        }).andThen(getTrajectoryCommand("BarrelSplit2.wpilib.json")).andThen(() -> {
-            m_robotDrive.reverse();
-        }).andThen(getTrajectoryCommand("BarrelSplit3.wpilib.json")).andThen(() -> {
-            m_robotDrive.reverse();
-        }).andThen(getTrajectoryCommand("BarrelSplit4.wpilib.json"));
-        return command;
+        return getTrajectoryCommand("Unnamed.wpilib.json");
+//        Command command = getTrajectoryCommand("BarrelSplit1.wpilib.json");
+//        command = command.andThen(() -> {
+//            m_robotDrive.reverse();
+//        }).andThen(getTrajectoryCommand("BarrelSplit2.wpilib.json")).andThen(() -> {
+//            m_robotDrive.reverse();
+//        }).andThen(getTrajectoryCommand("BarrelSplit3.wpilib.json")).andThen(() -> {
+//            m_robotDrive.reverse();
+//        }).andThen(getTrajectoryCommand("BarrelSplit4.wpilib.json"));
+//        return command;
     }
 
     private void teleopPeriodic() {
         m_robotDrive.arcadeDrive(-controller.getY(GenericHID.Hand.kLeft), controller.getX(GenericHID.Hand.kRight));
+        m_robotShooter.setShootMotorsSpeed(controller.getTriggerAxis(GenericHID.Hand.kLeft)-controller.getTriggerAxis(GenericHID.Hand.kRight));
+        motorTransfer.set(controller.getRawButton(1)?-0.8:0);
+        if (controller.getRawButton(2)) {
+            m_robotCollector.rotationPanelCounterClockWise();
+        } else {
+            m_robotCollector.stopPanel();
+        }
+        if(controller.getRawButton(3)){
+            m_robotCollector.enableInTake();
+        }else{
+            m_robotCollector.disableInTake();
+        }
     }
 
     private Command getTrajectoryCommand(String pathName) {

@@ -7,6 +7,7 @@ package frc.robot;
 
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel;
+import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -26,6 +27,10 @@ public class Robot extends TimedRobot
     private Command autonomousCommand;
 
     private RobotContainer robotContainer;
+
+    public Robot(){
+        super(0.01);
+    }
 
     /**
      * This method is run when the robot is first started up and should be used for any
@@ -60,7 +65,10 @@ public class Robot extends TimedRobot
 
     /** This method is called once each time the robot enters Disabled mode. */
     @Override
-    public void disabledInit() {}
+    public void disabledInit() {
+        robotContainer.m_robotCollector.stopAll();
+        robotContainer.m_robotShooter.stopAll();
+    }
 
     @Override
     public void disabledPeriodic() {}
@@ -104,6 +112,7 @@ public class Robot extends TimedRobot
     @Override
     public void teleopInit()
     {
+        robotContainer.m_robotShooter.zeroAngle();
         // This makes sure that the autonomous stops running when
         // teleop starts running. If you want the autonomous to
         // continue until interrupted by another command, remove
@@ -116,7 +125,8 @@ public class Robot extends TimedRobot
 
     /** This method is called periodically during operator control. */
     @Override
-    public void teleopPeriodic() {}
+    public void teleopPeriodic() {
+    }
 
     @Override
     public void testInit()

@@ -27,13 +27,20 @@ public class CollectSubsystem extends SubsystemBase {
         m_InTakes.set(0);
     }
     public void rotationPanelClockWise(){
-        m_Panel.set(CollectorConstants.kMotor_Panel_Speed);
+        m_Panel.set(-CollectorConstants.kMotor_Panel_Speed);
     }
     public void rotationPanelCounterClockWise(){
-        m_Panel.set(-CollectorConstants.kMotor_Panel_Speed);
+        m_Panel.set(CollectorConstants.kMotor_Panel_Speed);
     }
     public void reversePanel(){
         m_Panel.set(-m_Panel.get());
+    }
+    public void stopPanel(){
+        m_Panel.set(0);
+    }
+    public void stopAll(){
+        stopPanel();
+        disableInTake();
     }
 }
 
