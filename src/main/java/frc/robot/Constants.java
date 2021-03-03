@@ -36,6 +36,7 @@ public class Constants {
         public static final int kMotor_Shoot_Channel2=11;
         public static final int kMotor_Shoot_Angle_Channel=5;
         public static final int kMotor_Shoot_Rotation_Channel=9;
+        public static final int kMotor_Shoot_Transfer=8;
 
         public static final int kEncoder_Shoot_Angle_ChannelA=4;
         public static final int kEncoder_Shoot_Angle_ChannelB=5;
@@ -74,6 +75,6 @@ public class Constants {
         public static final double kMotor_InTakes_Speed = -0.9;
 
         public static final int kMotor_Panel = 7;
-        public static final double kMotor_Panel_Speed = 0.4;
+        public static final double kMotor_Panel_Speed = 0.35;
     }
 }

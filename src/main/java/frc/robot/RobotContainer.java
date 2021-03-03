@@ -39,7 +39,6 @@ public class RobotContainer {
     DriveSubsystem m_robotDrive = new DriveSubsystem();
     CollectSubsystem m_robotCollector = new CollectSubsystem();
     ShootSubsystem m_robotShooter = new ShootSubsystem(nt);
-    WPI_VictorSPX motorTransfer = new WPI_VictorSPX(8);
     Robot robot;
 
     /**
@@ -73,22 +72,33 @@ public class RobotContainer {
      * @return the command to run in autonomous
      */
     public Command getAutonomousCommand() {
-        return getTrajectoryCommand("Unnamed.wpilib.json");
-//        Command command = getTrajectoryCommand("BarrelSplit1.wpilib.json");
-//        command = command.andThen(() -> {
-//            m_robotDrive.reverse();
-//        }).andThen(getTrajectoryCommand("BarrelSplit2.wpilib.json")).andThen(() -> {
-//            m_robotDrive.reverse();
-//        }).andThen(getTrajectoryCommand("BarrelSplit3.wpilib.json")).andThen(() -> {
-//            m_robotDrive.reverse();
-//        }).andThen(getTrajectoryCommand("BarrelSplit4.wpilib.json"));
-//        return command;
+        return new SequentialCommandGroup(
+                new InstantCommand(()->{
+                    m_robotDrive.inverted=false;
+                    m_robotCollector.rotationPanelCounterClockWise();
+                    m_robotShooter.AutoShoot();
+                    m_robotShooter.AutoShootStop();
+                    m_robotCollector.AutoCollect();
+                    m_robotDrive.reverse();
+                }),
+                getTrajectoryCommand("2020.wpilib.json"),
+                new InstantCommand(()->{
+                    m_robotCollector.stopAll();
+                })
+        );
+//        return new SequentialCommandGroup(
+//                getTrajectoryCommand("Barrel.wpilib.json")
+//        );
     }
 
     private void teleopPeriodic() {
         m_robotDrive.arcadeDrive(-controller.getY(GenericHID.Hand.kLeft), controller.getX(GenericHID.Hand.kRight));
-        m_robotShooter.setShootMotorsSpeed(controller.getTriggerAxis(GenericHID.Hand.kLeft)-controller.getTriggerAxis(GenericHID.Hand.kRight));
-        motorTransfer.set(controller.getRawButton(1)?-0.8:0);
+        m_robotShooter.setShootMotorsSpeed(controller.getTriggerAxis(GenericHID.Hand.kRight)-controller.getTriggerAxis(GenericHID.Hand.kLeft));
+        if(controller.getRawButton(1)){
+            m_robotShooter.enableTransfer();
+        }else {
+            m_robotShooter.disableTransfer();
+        }
         if (controller.getRawButton(2)) {
             m_robotCollector.rotationPanelCounterClockWise();
         } else {

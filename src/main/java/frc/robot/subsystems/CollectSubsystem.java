@@ -42,5 +42,12 @@ public class CollectSubsystem extends SubsystemBase {
         stopPanel();
         disableInTake();
     }
+    public void AutoCollect(){
+        enableInTake();
+        m_Panel.set(0.7);
+    }
+    public void AutoCollectStop(){
+        stopAll();
+    }
 }
 
