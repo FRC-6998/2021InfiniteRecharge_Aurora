@@ -5,12 +5,15 @@
 
 package frc.robot;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.trajectory.TrajectoryUtil;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 
@@ -25,7 +28,15 @@ public class Robot extends TimedRobot
 {
     public int stage=0;
     private Command autonomousCommand;
-
+    public static final String AUTO_Barrel = "BarrelRacing";
+    public static final String AUTO_Slalom = "Slalom";
+    public static final String AUTO_Bounce = "Bounce";
+    public static final String AUTO_GalasticA = "Galastic A";
+    public static final String AUTO_GalasticB = "Galastic B";
+    public static final String AUTO_2021_Full = "2021 Full";
+    public static final String AUTO_2021_Only_Leave = "2021 Only Leave";
+    String autoSelected;
+    final SendableChooser<String> chooser = new SendableChooser<>();
     private RobotContainer robotContainer;
 
     /**
@@ -38,6 +49,19 @@ public class Robot extends TimedRobot
         // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
         // autonomous chooser on the dashboard.
         robotContainer = new RobotContainer(this);
+        chooser.setDefaultOption("2021 Only Leave",AUTO_2021_Only_Leave);
+        chooser.addOption("2021 Full", AUTO_2021_Full);
+        chooser.addOption("BarrelRacing",AUTO_Barrel);
+        chooser.addOption("Slalom", AUTO_Slalom);
+        chooser.addOption("Bounce", AUTO_Bounce);
+        chooser.addOption("Galastic A", AUTO_GalasticA);
+        chooser.addOption("Galastic B", AUTO_GalasticB);
+        SmartDashboard.putData("Auto choices", chooser);
+        try {
+            TrajectoryUtil.deserializeTrajectory("[{\"time\":0.0,\"velocity\":0.0,\"acceleration\":1.5000000000000002,\"pose\":{\"translation\":{\"x\":0.7823460847240052,\"y\":2.292162516046213},\"rotation\":{\"radians\":0.0}},\"curvature\":0.0}]");
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -62,6 +86,7 @@ public class Robot extends TimedRobot
     /** This method is called once each time the robot enters Disabled mode. */
     @Override
     public void disabledInit() {
+        CommandScheduler.getInstance().cancelAll();
         robotContainer.m_robotCollector.stopAll();
         robotContainer.m_robotShooter.stopAll();
     }
@@ -73,7 +98,7 @@ public class Robot extends TimedRobot
     @Override
     public void autonomousInit() {
         stage=0;
-        SmartDashboard.putNumber("Stage",0);
+        autoSelected = chooser.getSelected();
         autonomousCommand = robotContainer.getAutonomousCommand();
         // schedule the autonomous command (example)
         if (autonomousCommand != null) {
@@ -109,6 +134,7 @@ public class Robot extends TimedRobot
     public void teleopInit()
     {
         robotContainer.m_robotShooter.zeroAngle();
+
         // This makes sure that the autonomous stops running when
         // teleop starts running. If you want the autonomous to
         // continue until interrupted by another command, remove

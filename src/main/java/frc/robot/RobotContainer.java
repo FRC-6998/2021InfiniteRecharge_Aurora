@@ -6,26 +6,24 @@
 package frc.robot;
 
 import com.ctre.phoenix.motorcontrol.can.WPI_VictorSPX;
+import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkMaxLowLevel;
 import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.GenericHID;
+import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.XboxController;
-import edu.wpi.first.wpilibj.controller.PIDController;
-import edu.wpi.first.wpilibj.controller.RamseteController;
-import edu.wpi.first.wpilibj.controller.SimpleMotorFeedforward;
-import edu.wpi.first.wpilibj.trajectory.Trajectory;
-import edu.wpi.first.wpilibj.trajectory.TrajectoryUtil;
-import edu.wpi.first.wpilibj2.command.*;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.InstantCommand;
+import edu.wpi.first.wpilibj2.command.RunCommand;
+import edu.wpi.first.wpilibj2.command.SequentialCommandGroup;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
-import frc.robot.Constants.AutoConstants;
-import frc.robot.Constants.DriveConstants;
+import edu.wpi.first.wpilibj2.command.button.POVButton;
+import frc.robot.commands.DelayCommand;
+import frc.robot.commands.RunTrajectoryCommand;
 import frc.robot.subsystems.CollectSubsystem;
 import frc.robot.subsystems.DriveSubsystem;
 import frc.robot.subsystems.ShootSubsystem;
-
-import java.io.IOException;
-import java.nio.file.Path;
+import frc.robot.Constants.*;
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
@@ -34,12 +32,16 @@ import java.nio.file.Path;
  * subsystems, commands, and button mappings) should be declared here.
  */
 public class RobotContainer {
-    NetworkTableInstance nt=NetworkTableInstance.getDefault();
-    XboxController controller = new XboxController(0);
+    NetworkTableInstance nt = NetworkTableInstance.getDefault();
+    Joystick controller1 = new Joystick(0);
+    Joystick controller2 = new Joystick(1);
     DriveSubsystem m_robotDrive = new DriveSubsystem();
     CollectSubsystem m_robotCollector = new CollectSubsystem();
     ShootSubsystem m_robotShooter = new ShootSubsystem(nt);
     Robot robot;
+    CANSparkMax hang = new CANSparkMax(22, CANSparkMaxLowLevel.MotorType.kBrushless);
+    WPI_VictorSPX hangLine = new WPI_VictorSPX(10);
+    WPI_VictorSPX hangBalance = new WPI_VictorSPX(11);
 
     /**
      * The container for the robot.  Contains subsystems, OI devices, and commands.
@@ -62,7 +64,89 @@ public class RobotContainer {
      * {@link edu.wpi.first.wpilibj2.command.button.JoystickButton JoystickButton}.
      */
     private void configureButtonBindings() {
+        // 搖桿1
+        new JoystickButton(controller1, OIConstants.kReverseBtn).whenPressed(() -> m_robotDrive.reverse());
+        new JoystickButton(controller1, 7)
+                .whenPressed(() -> m_robotCollector.enableInTake(false))
+                .whenReleased(() -> m_robotCollector.disableInTake());
+        new JoystickButton(controller1, 8)
+                .whenPressed(() -> m_robotCollector.rotationPanelCounterClockWise())
+                .whenReleased(() -> m_robotCollector.stopPanel());
+        new JoystickButton(controller1, 5)
+                .whenPressed(() -> m_robotCollector.enableInTake(true))
+                .whenReleased(() -> m_robotCollector.disableInTake());
+        new JoystickButton(controller1, 6)
+                .whenPressed(() -> m_robotCollector.setPanelMotorSpeed(-0.8))
+                .whenReleased(() -> m_robotCollector.stopPanel());
 
+        // 搖桿2
+        new POVButton(controller2, 180)
+                .whenPressed(() -> m_robotShooter.enableAutoAlignment(), m_robotShooter);
+                //.whenReleased(() -> m_robotShooter.disableAutoAlignment(), m_robotShooter);
+        new POVButton(controller2, 90)
+                .whenPressed(() -> {
+                    m_robotShooter.disableAutoAlignment();
+                    m_robotShooter.setRotationSpeed(ShootConstants.kMotor_Manual_Rotation_Speed);
+                }, m_robotShooter)
+                .whenReleased(() -> {
+                    m_robotShooter.setRotationSpeed(0);
+                    m_robotShooter.enableAutoAlignment();
+                },m_robotShooter);
+        new POVButton(controller2, 270)
+                .whenPressed(() -> {
+                    m_robotShooter.disableAutoAlignment();
+                    m_robotShooter.setRotationSpeed(-ShootConstants.kMotor_Manual_Rotation_Speed);
+                }, m_robotShooter)
+                .whenReleased(() -> {
+                    m_robotShooter.setRotationSpeed(0);
+                    m_robotShooter.enableAutoAlignment();
+                },m_robotShooter);
+        // 啟用射擊馬達
+        new JoystickButton(controller2, OIConstants.kShootBtn)
+                .whenPressed(new InstantCommand(() -> m_robotShooter.enableShootMotors()))
+                .whenReleased(new InstantCommand(() -> m_robotShooter.disableShootMotors()));
+        // 強制退球
+        new JoystickButton(controller2, OIConstants.kShootReverseBtn)
+                .whenPressed(new InstantCommand(() -> m_robotCollector.setPanelMotorSpeed(-0.8), m_robotCollector))
+                .whenReleased(new InstantCommand(() -> m_robotCollector.stopPanel(), m_robotCollector));
+        // 同時啟用轉盤與輸送馬達
+        new JoystickButton(controller2, OIConstants.kRotationPanelAndEnableTransferBtn)
+                .whenPressed(() -> {
+                    if (!m_robotShooter.isShootMotorsEnabled()) return;
+                    m_robotCollector.rotationPanelCounterClockWise();
+                    m_robotShooter.enableTransferMotor();
+                }, m_robotCollector, m_robotShooter)
+                .whenReleased(() -> {
+                    m_robotCollector.stopPanel();
+                    m_robotShooter.disableTransferMotor();
+                });
+        new JoystickButton(controller2, 9)
+                .whenPressed(() -> hang.set(-1))
+                .whenReleased(() -> hang.set(0));
+        new JoystickButton(controller2, 11)
+                .whenPressed(() -> hang.set(1))
+                .whenReleased(() -> hang.set(0));
+        new JoystickButton(controller2, 10)
+                .whenPressed(() -> hangLine.set(1))
+                .whenReleased(() -> hangLine.set(0));
+        new JoystickButton(controller2, 12)
+                .whenPressed(() -> hangLine.set(-1))
+                .whenReleased(() -> hangLine.set(0));
+        new JoystickButton(controller2, 7)
+                .whenPressed(() -> hangBalance.set(-1))
+                .whenReleased(() -> hangBalance.set(0));
+        new JoystickButton(controller2, 8)
+                .whenPressed(() -> hangBalance.set(1))
+                .whenReleased(() -> hangBalance.set(0));
+        new JoystickButton(controller2, 6)
+                .whenPressed(() -> {
+                    m_robotCollector.enableInTake(false);
+                    m_robotCollector.rotationPanelCounterClockWise();
+                })
+                .whenReleased(() -> {
+                    m_robotCollector.stopPanel();
+                    m_robotCollector.disableInTake();
+                });
     }
 
 
@@ -72,74 +156,105 @@ public class RobotContainer {
      * @return the command to run in autonomous
      */
     public Command getAutonomousCommand() {
-        return new SequentialCommandGroup(
-                new InstantCommand(()->{
-                    m_robotDrive.inverted=false;
-                    m_robotCollector.rotationPanelCounterClockWise();
-                    m_robotShooter.AutoShoot();
-                    m_robotShooter.AutoShootStop();
-                    m_robotCollector.AutoCollect();
-                    m_robotDrive.reverse();
-                }),
-                getTrajectoryCommand("2020.wpilib.json"),
-                new InstantCommand(()->{
-                    m_robotCollector.stopAll();
-                })
-        );
-//        return new SequentialCommandGroup(
-//                getTrajectoryCommand("Barrel.wpilib.json")
-//        );
+        switch (robot.autoSelected) {
+            case Robot.AUTO_2021_Full:
+                return new SequentialCommandGroup(
+                        new InstantCommand(() -> {
+                            m_robotDrive.inverted = false;
+                            m_robotCollector.enableInTake(false);
+                            m_robotCollector.rotationPanelCounterClockWise();
+                        }),
+                        new RunTrajectoryCommand(m_robotDrive, "AutoFullSplit1.wpilib.json"),
+                        new InstantCommand(() -> {
+                            m_robotCollector.disableInTake();
+                            m_robotCollector.stopPanel();
+                        }),
+                        new InstantCommand(() -> m_robotDrive.reverse()),
+                        new RunTrajectoryCommand(m_robotDrive, "AutoFullSplit2.wpilib.json")
+                );
+            case Robot.AUTO_2021_Only_Leave:
+                return new SequentialCommandGroup(
+                        new InstantCommand(() -> {
+                            m_robotDrive.inverted = false;
+                            m_robotShooter.enableShootMotors();
+                            //m_robotDrive.arcadeDrive(1,0);
+                        }),
+                        new DelayCommand(3),
+                        new InstantCommand(()->{
+                            m_robotShooter.enableTransferMotor();
+                            m_robotCollector.rotationPanelCounterClockWise();
+                        }),
+                        new DelayCommand(9),
+                        new InstantCommand(()->{
+                            m_robotShooter.disableShootMotors();
+                            m_robotCollector.stopPanel();
+                            m_robotShooter.disableTransferMotor();
+                            m_robotDrive.arcadeDrive(1,0);
+                        }),
+                        new DelayCommand(1),
+                        new InstantCommand(()->{
+                            m_robotDrive.arcadeDrive(0,0);
+                        })
+                );
+            case Robot.AUTO_Barrel:
+                return new SequentialCommandGroup(
+                        new InstantCommand(() -> m_robotDrive.inverted = false),
+                        new RunTrajectoryCommand(m_robotDrive, "BarrelRacing.wpilib.json")
+                );
+            case Robot.AUTO_Bounce:
+                return new SequentialCommandGroup(
+                        new InstantCommand(() -> m_robotDrive.inverted = false),
+                        new RunTrajectoryCommand(m_robotDrive, "BounceSplit1.wpilib.json"),
+                        new InstantCommand(() -> m_robotDrive.reverse()),
+                        new RunTrajectoryCommand(m_robotDrive, "BounceSplit2.wpilib.json"),
+                        new InstantCommand(() -> m_robotDrive.reverse()),
+                        new RunTrajectoryCommand(m_robotDrive, "BounceSplit3.wpilib.json"),
+                        new InstantCommand(() -> m_robotDrive.reverse()),
+                        new RunTrajectoryCommand(m_robotDrive, "BounceSplit4.wpilib.json")
+                );
+            case Robot.AUTO_Slalom:
+                return new SequentialCommandGroup(
+                        new InstantCommand(() -> m_robotDrive.inverted = false),
+                        new RunTrajectoryCommand(m_robotDrive, "sladom.wpilib.json")
+                );
+            case Robot.AUTO_GalasticA:
+                return new SequentialCommandGroup(
+                        new InstantCommand(() -> {
+                            m_robotDrive.inverted = false;
+                            m_robotCollector.enableInTake(false);
+                            m_robotCollector.rotationPanelCounterClockWise();
+                        }),
+                        new RunTrajectoryCommand(m_robotDrive, "GalasticA.wpilib.json"),
+                        new InstantCommand(() -> {
+                            m_robotCollector.disableInTake();
+                            m_robotCollector.stopPanel();
+                        })
+                );
+            case Robot.AUTO_GalasticB:
+                return new SequentialCommandGroup(
+                        new InstantCommand(() -> {
+                            m_robotDrive.inverted = false;
+                            m_robotCollector.enableInTake(false);
+                            m_robotCollector.rotationPanelCounterClockWise();
+                        }),
+                        new RunTrajectoryCommand(m_robotDrive, "GalasticB.wpilib.json"),
+                        new InstantCommand(() -> {
+                            m_robotCollector.disableInTake();
+                            m_robotCollector.stopPanel();
+                        })
+                );
+            default:
+                return new InstantCommand();
+        }
     }
 
     private void teleopPeriodic() {
-        m_robotDrive.arcadeDrive(-controller.getY(GenericHID.Hand.kLeft), controller.getX(GenericHID.Hand.kRight));
-        m_robotShooter.setShootMotorsSpeed(controller.getTriggerAxis(GenericHID.Hand.kRight)-controller.getTriggerAxis(GenericHID.Hand.kLeft));
-        if(controller.getRawButton(1)){
-            m_robotShooter.enableTransfer();
-        }else {
-            m_robotShooter.disableTransfer();
-        }
-        if (controller.getRawButton(2)) {
-            m_robotCollector.rotationPanelCounterClockWise();
-        } else {
-            m_robotCollector.stopPanel();
-        }
-        if(controller.getRawButton(3)){
-            m_robotCollector.enableInTake();
-        }else{
-            m_robotCollector.disableInTake();
-        }
-    }
-
-    private Command getTrajectoryCommand(String pathName) {
-        Trajectory trajectory;
-        try {
-            Path trajectoryPath = Filesystem.getDeployDirectory().toPath().resolve("paths/" + pathName);
-            trajectory = TrajectoryUtil.fromPathweaverJson(trajectoryPath);
-            RamseteCommand ramseteCommand = new RamseteCommand(
-                    trajectory,
-                    m_robotDrive::getPose,
-                    new RamseteController(AutoConstants.kRamseteB, AutoConstants.kRamseteZeta),
-                    new SimpleMotorFeedforward(DriveConstants.ksVolts,
-                            DriveConstants.kvVoltSecondsPerMeter,
-                            DriveConstants.kaVoltSecondsSquaredPerMeter),
-                    DriveConstants.kDriveKinematics,
-                    m_robotDrive::getWheelSpeeds,
-                    new PIDController(DriveConstants.kPDriveVel, 0, 0),
-                    new PIDController(DriveConstants.kPDriveVel, 0, 0),
-                    // RamseteCommand passes volts to the callback
-                    m_robotDrive::tankDriveVolts,
-                    m_robotDrive
-            );
-            // Reset odometry to the starting pose of the trajectory.
-            m_robotDrive.resetOdometry(trajectory.getInitialPose());
-            // Run path following command, then stop at the end.
-            return ramseteCommand.andThen(() -> {
-                m_robotDrive.tankDriveVolts(0, 0);
-            });
-        } catch (IOException ex) {
-            DriverStation.reportError("Unable to open trajectory", ex.getStackTrace());
-            return new InstantCommand();
-        }
+        // 搖桿1
+        double ySpeed = -controller1.getY(GenericHID.Hand.kLeft);
+        ySpeed = Math.abs(ySpeed) >= 0.2 ? ySpeed : 0;
+        double zRotation = controller1.getZ();
+        zRotation = Math.abs(zRotation) >= 0.2 ? 0.8* zRotation : 0;
+        m_robotDrive.arcadeDrive(ySpeed, zRotation);
     }
 }
+

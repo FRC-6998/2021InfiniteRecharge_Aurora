@@ -18,6 +18,8 @@ import frc.robot.Constants.*;
 public class DriveSubsystem extends SubsystemBase {
     public boolean inverted = false;
 
+    private double lastSpeed = 0;
+
     // The motors on the left side of the drive.
     private final SpeedControllerGroup m_leftMotors =
             new SpeedControllerGroup(new WPI_TalonSRX(DriveConstants.kMotor_L_Channel1),
@@ -34,12 +36,12 @@ public class DriveSubsystem extends SubsystemBase {
     // The left-side drive encoder
     private Encoder m_leftEncoder =
             new Encoder(DriveConstants.kEncoder_L_Channel1, DriveConstants.kEncoder_L_Channel2,
-                    DriveConstants.kEncoder_L_Reversed, CounterBase.EncodingType.k1X);
+                    DriveConstants.kEncoder_L_Reversed);
 
     // The left-side drive encoder
     private Encoder m_rightEncoder =
             new Encoder(DriveConstants.kEncoder_R_Channel1, DriveConstants.kEncoder_R_Channel2,
-                    DriveConstants.kEncoder_R_Reversed, CounterBase.EncodingType.k1X);
+                    DriveConstants.kEncoder_R_Reversed);
 
     // Odometry class for tracking robot pose
     private final DifferentialDriveOdometry m_odometry;
@@ -55,8 +57,15 @@ public class DriveSubsystem extends SubsystemBase {
         m_odometry = new DifferentialDriveOdometry(NavX.navx.getRotation2d());
     }
 
+    public void setSafetyEnabled(boolean enabled){
+        m_drive.setSafetyEnabled(enabled);
+    }
+
     @Override
     public void periodic() {
+        if(lastSpeed!=0){
+            m_drive.arcadeDrive(lastSpeed,0);
+        }
         // Update the odometry in the periodic block
         m_odometry.update(NavX.navx.getRotation2d(), m_leftEncoder.getDistance(),
                 m_rightEncoder.getDistance());
@@ -98,6 +107,7 @@ public class DriveSubsystem extends SubsystemBase {
      */
     public void arcadeDrive(double fwd, double rot) {
         m_drive.arcadeDrive(fwd, rot);
+        lastSpeed=fwd;
     }
 
     /**
@@ -183,7 +193,6 @@ public class DriveSubsystem extends SubsystemBase {
 
     public void reverse(){
         inverted=!inverted;
-        SmartDashboard.putBoolean("Reversed",inverted);
         m_leftEncoder.close();
         m_rightEncoder.close();
         m_drive.close();
